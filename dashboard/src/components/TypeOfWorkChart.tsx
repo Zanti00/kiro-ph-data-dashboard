@@ -135,16 +135,16 @@ export function TypeOfWorkChart() {
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
       <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-bold text-gray-800">📊 Type of Work Distribution</h3>
+        <h3 className="text-lg font-bold text-gray-800">Type of Work Distribution</h3>
         <span className="text-xs text-gray-500">
-          {queryTime.toFixed(2)}ms {queryTime < 100 && '⚡'}
+          {queryTime.toFixed(2)}ms
         </span>
       </div>
       <div style={{ height: '320px' }}>
         <Doughnut key={filtersKey} data={chartData} options={options} redraw={true} />
       </div>
       <p className="text-xs text-gray-500 mt-2 text-center">
-        💡 Click any slice to filter by work type
+        Click any slice to filter by work type
       </p>
     </div>
   );

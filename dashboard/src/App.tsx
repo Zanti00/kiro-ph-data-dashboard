@@ -1,10 +1,3 @@
-/**
- * ============================================================================
- * PHILIPPINE FLOOD CONTROL DATA DASHBOARD
- * Workshop: Building High-Performance Dashboards with DuckDB-WASM
- * ============================================================================
- */
-
 import { DuckDBProvider } from './contexts/DuckDBContext';
 import { FilterProvider } from './contexts/FilterContext';
 import { SummaryCards } from './components/SummaryCards';
@@ -41,7 +34,7 @@ function DashboardContent() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
           <h2 className="text-xl font-bold text-red-800 mb-2">
-            ❌ Initialization Failed
+            Initialization Failed
           </h2>
           <p className="text-red-700">{error}</p>
           <button
@@ -67,7 +60,7 @@ function DashboardContent() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">
-                🌊 Philippine Flood Control Dashboard
+                Philippine Flood Control Dashboard
               </h1>
               <p className="text-sm text-gray-600 mt-1">
                 Powered by DuckDB-WASM • Zero Server Costs • Sub-100ms Queries
@@ -129,7 +122,7 @@ function DashboardContent() {
               <strong>Workshop Demo:</strong> Client-side analytics with DuckDB-WASM
             </p>
             <p className="mt-2">
-              💡 <strong>Key Insight:</strong> All queries run in your browser.
+              <strong>Key Insight:</strong> All queries run in your browser.
               No API server. No database costs. Infinite scale on Vercel CDN.
             </p>
           </div>

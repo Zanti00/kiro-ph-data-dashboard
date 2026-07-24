@@ -153,14 +153,14 @@ export function BudgetByRegionChart() {
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold text-gray-800">Budget Distribution by Region</h2>
         <span className="text-xs text-gray-500">
-          {queryTime.toFixed(2)}ms {queryTime < 100 && '⚡'}
+          {queryTime.toFixed(2)}ms
         </span>
       </div>
       <div style={{ height: '500px' }}>
         <Bar key={filtersKey} data={chartData} options={options} redraw={true} />
       </div>
       <p className="text-xs text-gray-500 mt-2 text-center">
-        💡 Click any bar to filter dashboard to that region
+        Click any bar to filter dashboard to that region
       </p>
     </div>
   );

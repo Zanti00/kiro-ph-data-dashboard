@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useDuckDB } from '../hooks/useDuckDB';
 import { useFilters } from '../contexts/FilterContext';
@@ -12,6 +12,17 @@ interface ProjectPoint {
   Latitude: number;
   Longitude: number;
   ABC: number;
+}
+
+function MapInvalidator() {
+  const map = useMap();
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      map.invalidateSize();
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [map]);
+  return null;
 }
 
 export function ProjectMap() {
@@ -91,13 +102,13 @@ export function ProjectMap() {
     <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
       <div className="flex justify-between items-center mb-4">
         <div>
-          <h2 className="text-xl font-bold text-gray-800">🗺️ Geographic Project Map</h2>
+          <h2 className="text-xl font-bold text-gray-800">Geographic Project Map</h2>
           <p className="text-xs text-gray-500 mt-1">
             Showing {projects.length.toLocaleString()} project locations • Circle size indicates Approved Budget (ABC)
           </p>
         </div>
         <span className="text-xs text-gray-500">
-          {queryTime.toFixed(2)}ms {queryTime < 100 && '⚡'}
+          {queryTime.toFixed(2)}ms
         </span>
       </div>
 
@@ -108,9 +119,10 @@ export function ProjectMap() {
           scrollWheelZoom={true}
           style={{ height: '100%', width: '100%' }}
         >
+          <MapInvalidator />
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
           />
           {projects.map((p) => (
             <CircleMarker
@@ -127,8 +139,8 @@ export function ProjectMap() {
               <Popup>
                 <div className="p-1 max-w-xs text-xs">
                   <p className="font-bold text-gray-900 mb-1">{p.ProjectDescription}</p>
-                  <p className="text-gray-600">📍 {p.Province}, {p.Region}</p>
-                  <p className="text-blue-600 font-semibold mt-1">💰 {formatCurrency(p.ABC)}</p>
+                  <p className="text-gray-600">{p.Province}, {p.Region}</p>
+                  <p className="text-blue-600 font-semibold mt-1">Budget: {formatCurrency(p.ABC)}</p>
                   <button
                     onClick={() => handleRegionClick(p.Region)}
                     className="mt-2 w-full px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium"

@@ -59,10 +59,10 @@ function resolveDuckDBRegion(featureProps: any): string | null {
 
 // Solid filled choropleth color scale
 function getChoroplethColor(budget: number, maxBudget: number): string {
-  if (!budget || budget <= 0) return '#E5E7EB'; // Neutral Gray for no budget
+  if (!budget || budget <= 0) return '#E5E7EB';
   const ratio = budget / (maxBudget || 1);
 
-  if (ratio > 0.7) return '#991B1B';  // Dark Red (highest spend)
+  if (ratio > 0.7) return '#991B1B';  // Dark Red
   if (ratio > 0.45) return '#DC2626'; // Solid Red
   if (ratio > 0.25) return '#EA580C'; // Solid Orange
   if (ratio > 0.12) return '#059669'; // Solid Emerald Green
@@ -72,7 +72,7 @@ function getChoroplethColor(budget: number, maxBudget: number): string {
 
 export function ProjectMap() {
   const { query, ready } = useDuckDB();
-  const { filters, buildWhereClause, updateFilter } = useFilters();
+  const { filters, updateFilter } = useFilters();
   const [geoData, setGeoData] = useState<any>(null);
   const [regionMetrics, setRegionMetrics] = useState<Record<string, RegionMetrics>>({});
   const [maxBudget, setMaxBudget] = useState(1);
@@ -98,6 +98,9 @@ export function ProjectMap() {
   }, []);
 
   // Fetch region spending aggregations from DuckDB
+  // Note: We deliberately exclude the 'Region' condition from the map's SQL filter
+  // so that year/work type filters update the map budget colors across ALL regions,
+  // while region selections highlight the map polygons directly!
   useEffect(() => {
     if (!ready) return;
 
@@ -106,14 +109,28 @@ export function ProjectMap() {
       const startTime = performance.now();
 
       try {
-        const whereClause = buildWhereClause();
+        const conditions: string[] = [];
+        if (filters.provinces.length > 0) {
+          const list = filters.provinces.map(p => `'${p.replace(/'/g, "''")}'`).join(', ');
+          conditions.push(`Province IN (${list})`);
+        }
+        if (filters.years.length > 0) {
+          conditions.push(`InfraYear IN (${filters.years.join(', ')})`);
+        }
+        if (filters.typeOfWork.length > 0) {
+          const list = filters.typeOfWork.map(t => `'${t.replace(/'/g, "''")}'`).join(', ');
+          conditions.push(`TypeofWork IN (${list})`);
+        }
+        
+        const mapWhere = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
         const sql = `
           SELECT
             Region as region,
             CAST(SUM(ABC) AS DOUBLE) as total_budget,
             CAST(COUNT(*) AS DOUBLE) as project_count
           FROM projects
-          ${whereClause}
+          ${mapWhere}
           WHERE Region IS NOT NULL
           GROUP BY Region
         `;
@@ -143,7 +160,7 @@ export function ProjectMap() {
     }
 
     fetchData();
-  }, [ready, filtersKey, buildWhereClause]);
+  }, [ready, filtersKey]);
 
   const getMetricsForFeature = (featureProps: any): RegionMetrics | null => {
     const duckRegion = resolveDuckDBRegion(featureProps);
@@ -152,15 +169,17 @@ export function ProjectMap() {
   };
 
   const styleFeature = (feature: any) => {
+    const duckRegion = resolveDuckDBRegion(feature?.properties);
     const metrics = getMetricsForFeature(feature?.properties);
     const budget = metrics ? metrics.total_budget : 0;
+    const isSelected = duckRegion ? filters.regions.includes(duckRegion) : false;
 
     return {
       fillColor: getChoroplethColor(budget, maxBudget),
-      weight: 1.5,
+      weight: isSelected ? 3.5 : 1.5,
       opacity: 1,
-      color: '#FFFFFF', // Crisp white borders
-      fillOpacity: 0.8,  // Solid filled color
+      color: isSelected ? '#1E3A8A' : '#FFFFFF', // Highlight selected regions with dark blue border
+      fillOpacity: isSelected ? 0.95 : 0.75,
     };
   };
 
@@ -174,13 +193,19 @@ export function ProjectMap() {
       ? `₱${(metrics.total_budget / 1_000_000_000).toFixed(2)} Billion`
       : 'No Data';
     const projectText = metrics ? metrics.project_count.toLocaleString() : '0';
+    const isSelected = duckRegion ? filters.regions.includes(duckRegion) : false;
 
     layer.bindTooltip(
       `
         <div style="font-family: sans-serif; padding: 4px;">
-          <div style="font-weight: bold; font-size: 13px; color: #111827;">${displayName} ${duckRegion ? `(${duckRegion})` : ''}</div>
+          <div style="font-weight: bold; font-size: 13px; color: #111827;">
+            ${displayName} ${duckRegion ? `(${duckRegion})` : ''} ${isSelected ? '✓ Filtered' : ''}
+          </div>
           <div style="color: #1E3A8A; font-size: 12px; font-weight: 600; margin-top: 2px;">Budget: ${budgetText}</div>
           <div style="color: #4B5563; font-size: 11px;">Projects: ${projectText}</div>
+          <div style="color: #2563EB; font-size: 10px; margin-top: 4px; font-weight: 500;">
+            ${isSelected ? 'Click to deselect region' : 'Click to filter by region'}
+          </div>
         </div>
       `,
       { sticky: true }
@@ -190,7 +215,7 @@ export function ProjectMap() {
       mouseover: (e: any) => {
         const l = e.target;
         l.setStyle({
-          weight: 3,
+          weight: 4,
           color: '#1E3A8A',
           fillOpacity: 0.95,
         });
@@ -200,10 +225,13 @@ export function ProjectMap() {
         l.setStyle(styleFeature(feature));
       },
       click: () => {
-        if (metrics) {
-          updateFilter('regions', [metrics.region]);
-        } else if (duckRegion) {
-          updateFilter('regions', [duckRegion]);
+        if (!duckRegion) return;
+        
+        // Toggle region in filter context
+        if (filters.regions.includes(duckRegion)) {
+          updateFilter('regions', filters.regions.filter(r => r !== duckRegion));
+        } else {
+          updateFilter('regions', [...filters.regions, duckRegion]);
         }
       },
     });
@@ -226,7 +254,7 @@ export function ProjectMap() {
         <div>
           <h2 className="text-xl font-bold text-gray-800">Regional Budget Choropleth Map</h2>
           <p className="text-xs text-gray-500 mt-1">
-            Regions colored by total budget allocation • Hover for details • Click any region to filter
+            All regions colored by active budget criteria • Click any region polygon to toggle region filter • Selected regions highlighted in dark blue
           </p>
         </div>
         <span className="text-xs text-gray-500">

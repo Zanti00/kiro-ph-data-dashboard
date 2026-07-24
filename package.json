@@ -1,0 +1,23 @@
+{
+  "name": "kiro-ph-data-dashboard",
+  "version": "1.0.0",
+  "description": "Philippine Flood Control Data Dashboard - Monorepo",
+  "private": true,
+  "workspaces": [
+    "pipeline",
+    "dashboard"
+  ],
+  "scripts": {
+    "build:data": "npm run build --workspace=pipeline",
+    "dev": "npm run build:data && npm run dev --workspace=dashboard",
+    "build": "npm run build:data && npm run build --workspace=dashboard"
+  },
+  "keywords": [
+    "flood-control",
+    "philippines",
+    "data-visualization",
+    "duckdb"
+  ],
+  "author": "",
+  "license": "MIT"
+}

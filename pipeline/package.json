@@ -1,0 +1,22 @@
+{
+  "name": "pipeline",
+  "version": "1.0.0",
+  "description": "Data pipeline for converting flood control JSON to Parquet",
+  "main": "convert.js",
+  "type": "module",
+  "scripts": {
+    "build": "node convert.js",
+    "audit": "node audit.js",
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "duckdb": "^1.4.4"
+  },
+  "keywords": [
+    "duckdb",
+    "parquet",
+    "data-pipeline"
+  ],
+  "author": "",
+  "license": "MIT"
+}

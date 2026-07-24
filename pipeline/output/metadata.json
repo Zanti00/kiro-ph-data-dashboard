@@ -1,0 +1,77 @@
+{
+  "generatedAt": "2026-07-24T12:46:33.290Z",
+  "pipeline": {
+    "inputFile": "C:\\Projects\\kiro-ph-data-dashboard\\flood_control.json",
+    "outputFile": "C:\\Projects\\kiro-ph-data-dashboard\\pipeline\\output\\flood_control.parquet",
+    "compression": "SNAPPY"
+  },
+  "audit": {
+    "rawRows": 9855,
+    "duplicatesRemoved": 28,
+    "whitespaceIssuesFixed": 0
+  },
+  "cleaning": {
+    "cleanedRows": 9827,
+    "rowsDropped": 28,
+    "nullCheckPassed": false
+  },
+  "summary": {
+    "totalProjects": 9827,
+    "totalABC": 560979311580.8907,
+    "totalContractCost": 545428505615.7416,
+    "budgetVariance": "2.77%",
+    "yearRange": "2018-2025",
+    "regionCount": 16,
+    "contractorCount": 2409
+  },
+  "dimensions": {
+    "regions": [
+      "Cordillera Administrative Region",
+      "National Capital Region",
+      "Region I",
+      "Region II",
+      "Region III",
+      "Region IV-A",
+      "Region IV-B",
+      "Region IX",
+      "Region V",
+      "Region VI",
+      "Region VII",
+      "Region VIII",
+      "Region X",
+      "Region XI",
+      "Region XII",
+      "Region XIII"
+    ],
+    "years": [
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025
+    ],
+    "typeOfWork": [
+      "Construction of Cutoff Channel",
+      "Construction of Dike",
+      "Construction of Drainage Structure",
+      "Construction of Flood Mitigation Facility",
+      "Construction of Flood Mitigation Structure",
+      "Construction of Groundsill",
+      "Construction of Retarding Basin",
+      "Construction of Revetment",
+      "Construction of Slope Protection Structure",
+      "Construction of Spur Dike",
+      "Construction of Waterway",
+      "Embankment",
+      "Rehabilitation / Major Repair of Drainage Structure",
+      "Rehabilitation / Major Repair of Flood Control Structure",
+      "Rehabilitation / Major Repair of Flood Mitigation Facility",
+      "Rehabilitation / Major Repair of Slope Protection Structure",
+      "Repair/Maintenance of Flood Control Structures",
+      "Upgrading of Drainage Structure"
+    ]
+  }
+}

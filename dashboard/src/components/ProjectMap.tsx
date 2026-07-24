@@ -21,24 +21,40 @@ function MapInvalidator() {
   return null;
 }
 
-// Map DuckDB Region names to GeoJSON shapeName / alternate names
-function matchesRegion(geoName: string, duckName: string): boolean {
-  if (!geoName || !duckName) return false;
-  const g = geoName.toLowerCase();
-  const d = duckName.toLowerCase();
-  
-  if (g === d) return true;
-  if (d.includes('ncr') && (g.includes('ncr') || g.includes('national capital'))) return true;
-  if (d.includes('caraga') && g.includes('caraga')) return true;
-  if (d.includes('barmm') && (g.includes('barmm') || g.includes('bangsamoro') || g.includes('autonomous'))) return true;
-  if (d.includes('car') && (g.includes('car') || g.includes('cordillera'))) return true;
-  if (d.includes('mimaropa') && g.includes('mimaropa')) return true;
-  
-  // Match Roman numerals e.g. "Region III", "Region IV-A", "Region VII"
-  const romanMatch = d.match(/region\s+([ivx0-9a-b]+)/i);
-  if (romanMatch && g.includes(romanMatch[1].toLowerCase())) return true;
+// Complete mapping table between GeoJSON properties (shapeISO / shapeName) and DuckDB Region strings
+const REGION_ALIAS_MAP: Record<string, string[]> = {
+  'National Capital Region': ['ncr', 'ph-00', 'national capital'],
+  'Cordillera Administrative Region': ['car', 'ph-15', 'cordillera'],
+  'Region I': ['region i', 'ilocos', 'ph-01'],
+  'Region II': ['region ii', 'cagayan valley', 'ph-02'],
+  'Region III': ['region iii', 'central luzon', 'ph-03'],
+  'Region IV-A': ['region iv-a', 'calabarzon', 'ph-40'],
+  'Region IV-B': ['region iv-b', 'mimaropa', 'ph-41'],
+  'Region V': ['region v', 'bicol', 'ph-05'],
+  'Region VI': ['region vi', 'western visayas', 'ph-06'],
+  'Region VII': ['region vii', 'central visayas', 'ph-07'],
+  'Region VIII': ['region viii', 'eastern visayas', 'ph-08'],
+  'Region IX': ['region ix', 'zamboanga', 'ph-09'],
+  'Region X': ['region x', 'northern mindanao', 'ph-10'],
+  'Region XI': ['region xi', 'davao', 'ph-11'],
+  'Region XII': ['region xii', 'soccsksargen', 'ph-12'],
+  'Region XIII': ['region xiii', 'caraga', 'ph-13'],
+  'BARMM': ['barmm', 'armm', 'bangsamoro', 'ph-14'],
+};
 
-  return false;
+function resolveDuckDBRegion(featureProps: any): string | null {
+  if (!featureProps) return null;
+  const iso = String(featureProps.shapeISO || '').toLowerCase();
+  const name = String(featureProps.shapeName || '').toLowerCase();
+
+  for (const [duckKey, aliases] of Object.entries(REGION_ALIAS_MAP)) {
+    for (const alias of aliases) {
+      if (iso === alias || name === alias || name.includes(alias)) {
+        return duckKey;
+      }
+    }
+  }
+  return null;
 }
 
 // Solid filled choropleth color scale
@@ -47,10 +63,10 @@ function getChoroplethColor(budget: number, maxBudget: number): string {
   const ratio = budget / (maxBudget || 1);
 
   if (ratio > 0.7) return '#991B1B';  // Dark Red (highest spend)
-  if (ratio > 0.4) return '#DC2626';  // Solid Red
-  if (ratio > 0.2) return '#EA580C';  // Solid Orange
-  if (ratio > 0.1) return '#059669';  // Solid Emerald Green
-  if (ratio > 0.03) return '#2563EB'; // Solid Royal Blue
+  if (ratio > 0.45) return '#DC2626'; // Solid Red
+  if (ratio > 0.25) return '#EA580C'; // Solid Orange
+  if (ratio > 0.12) return '#059669'; // Solid Emerald Green
+  if (ratio > 0.05) return '#2563EB'; // Solid Royal Blue
   return '#60A5FA';                   // Solid Light Blue
 }
 
@@ -65,7 +81,7 @@ export function ProjectMap() {
 
   const filtersKey = useMemo(() => JSON.stringify(filters), [filters]);
 
-  // Load Philippines region GeoJSON once
+  // Load Philippines region GeoJSON
   useEffect(() => {
     async function loadGeoJson() {
       try {
@@ -129,18 +145,14 @@ export function ProjectMap() {
     fetchData();
   }, [ready, filtersKey, buildWhereClause]);
 
-  const getRegionMetricsForFeature = (shapeName: string): RegionMetrics | null => {
-    for (const key of Object.keys(regionMetrics)) {
-      if (matchesRegion(shapeName, key)) {
-        return regionMetrics[key];
-      }
-    }
-    return null;
+  const getMetricsForFeature = (featureProps: any): RegionMetrics | null => {
+    const duckRegion = resolveDuckDBRegion(featureProps);
+    if (!duckRegion) return null;
+    return regionMetrics[duckRegion] || null;
   };
 
   const styleFeature = (feature: any) => {
-    const shapeName = feature?.properties?.shapeName || feature?.properties?.name || '';
-    const metrics = getRegionMetricsForFeature(shapeName);
+    const metrics = getMetricsForFeature(feature?.properties);
     const budget = metrics ? metrics.total_budget : 0;
 
     return {
@@ -148,13 +160,15 @@ export function ProjectMap() {
       weight: 1.5,
       opacity: 1,
       color: '#FFFFFF', // Crisp white borders
-      fillOpacity: 0.75, // Solid filled colors!
+      fillOpacity: 0.8,  // Solid filled color
     };
   };
 
   const onEachFeature = (feature: any, layer: any) => {
-    const shapeName = feature?.properties?.shapeName || feature?.properties?.name || 'Region';
-    const metrics = getRegionMetricsForFeature(shapeName);
+    const props = feature?.properties;
+    const duckRegion = resolveDuckDBRegion(props);
+    const displayName = props?.shapeName || duckRegion || 'Region';
+    const metrics = getMetricsForFeature(props);
 
     const budgetText = metrics
       ? `₱${(metrics.total_budget / 1_000_000_000).toFixed(2)} Billion`
@@ -164,8 +178,8 @@ export function ProjectMap() {
     layer.bindTooltip(
       `
         <div style="font-family: sans-serif; padding: 4px;">
-          <div style="font-weight: bold; font-size: 13px;">${shapeName}</div>
-          <div style="color: #1E3A8A; font-size: 12px; margin-top: 2px;">Budget: ${budgetText}</div>
+          <div style="font-weight: bold; font-size: 13px; color: #111827;">${displayName} ${duckRegion ? `(${duckRegion})` : ''}</div>
+          <div style="color: #1E3A8A; font-size: 12px; font-weight: 600; margin-top: 2px;">Budget: ${budgetText}</div>
           <div style="color: #4B5563; font-size: 11px;">Projects: ${projectText}</div>
         </div>
       `,
@@ -178,7 +192,7 @@ export function ProjectMap() {
         l.setStyle({
           weight: 3,
           color: '#1E3A8A',
-          fillOpacity: 0.9,
+          fillOpacity: 0.95,
         });
       },
       mouseout: (e: any) => {
@@ -188,6 +202,8 @@ export function ProjectMap() {
       click: () => {
         if (metrics) {
           updateFilter('regions', [metrics.region]);
+        } else if (duckRegion) {
+          updateFilter('regions', [duckRegion]);
         }
       },
     });

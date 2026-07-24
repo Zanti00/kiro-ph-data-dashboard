@@ -1,15 +1,3 @@
-/**
- * ============================================================================
- * WORKSHOP STEP 2: CLIENT-SIDE SQL AGGREGATION & DRILL-DOWNS
- * ============================================================================
- * 
- * Data Engineering Insight:
- * React Context + URL state persistence enables complex filter interactions
- * without backend state management, allowing infinite horizontal scaling on
- * Vercel's CDN while maintaining shareable URLs for collaborative analytics.
- * ============================================================================
- */
-
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 
 export interface FilterState {
@@ -48,20 +36,14 @@ export function FilterProvider({ children }: { children: ReactNode }) {
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [isInitialized, setIsInitialized] = useState(false);
   
-  // Use ref to store current filters for buildWhereClause without triggering re-renders
+  // Synchronously update ref on every render so buildWhereClause never has stale closure values
   const filtersRef = useRef(filters);
-  
-  // Update ref when filters change
-  useEffect(() => {
-    filtersRef.current = filters;
-  }, [filters]);
+  filtersRef.current = filters;
 
   // Parse URL on mount (only once)
   useEffect(() => {
-    console.log('[FilterContext] 🔵 Initializing from URL');
+    console.log('[FilterContext] Initializing from URL');
     const params = new URLSearchParams(window.location.search);
-    
-    // Only set filters if they're actually different from defaults
     const hasUrlFilters = params.toString().length > 0;
     
     if (hasUrlFilters) {
@@ -75,24 +57,15 @@ export function FilterProvider({ children }: { children: ReactNode }) {
           end: params.get('dateEnd') || null,
         },
       };
-      console.log('[FilterContext] 📥 Loaded filters from URL:', urlFilters);
       setFilters(urlFilters);
-    } else {
-      console.log('[FilterContext] 📥 No URL filters, using defaults');
     }
     
     setIsInitialized(true);
-    console.log('[FilterContext] ✅ Initialization complete');
-  }, []); // Only run once on mount
+  }, []);
 
-  // Update URL when filters change (but not on initial load)
+  // Update URL when filters change
   useEffect(() => {
-    if (!isInitialized) {
-      console.log('[FilterContext] ⏸️  Skipping URL update (not initialized)');
-      return; // Skip URL update on initial mount
-    }
-
-    console.log('[FilterContext] 🔄 Filters changed, updating URL:', filters);
+    if (!isInitialized) return;
 
     const params = new URLSearchParams();
     
@@ -135,11 +108,6 @@ export function FilterProvider({ children }: { children: ReactNode }) {
 
   /**
    * Build SQL WHERE clause from current filters
-   * 
-   * Logic: OR within category, AND across categories
-   * Example: (Region='NCR' OR Region='Region I') AND InfraYear IN (2023, 2024)
-   * 
-   * Uses filtersRef to avoid re-creating function on every filter change
    */
   const buildWhereClause = useCallback((): string => {
     const currentFilters = filtersRef.current;
@@ -182,7 +150,7 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     }
 
     return conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-  }, []); // Empty deps - function never recreated
+  }, [filters]); // Dep on filters to trigger callback update when filters change
 
   return (
     <FilterContext.Provider

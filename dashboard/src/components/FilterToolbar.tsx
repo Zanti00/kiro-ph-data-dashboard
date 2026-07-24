@@ -1,9 +1,3 @@
-/**
- * ============================================================================
- * WORKSHOP STEP 2: CLIENT-SIDE SQL DRILL-DOWNS - Filter UI
- * ============================================================================
- */
-
 import { useEffect, useState } from 'react';
 import { useDuckDB } from '../hooks/useDuckDB';
 import { useFilters } from '../contexts/FilterContext';
@@ -24,23 +18,21 @@ export function FilterToolbar() {
   });
   const [loading, setLoading] = useState(true);
 
-  // Load available filter options
   useEffect(() => {
     if (!ready) return;
 
     async function fetchOptions() {
       try {
-        // Fetch distinct values for each filter dimension
         const [regionsResult, yearsResult, typesResult] = await Promise.all([
-          query<{ region: string }>('SELECT DISTINCT Region as region FROM projects ORDER BY region'),
-          query<{ year: number }>('SELECT DISTINCT InfraYear as year FROM projects ORDER BY year'),
-          query<{ type: string }>('SELECT DISTINCT TypeofWork as type FROM projects ORDER BY type'),
+          query<{ region: string }>('SELECT DISTINCT Region as region FROM projects WHERE Region IS NOT NULL ORDER BY region'),
+          query<{ year: number }>('SELECT DISTINCT InfraYear as year FROM projects WHERE InfraYear IS NOT NULL ORDER BY year DESC'),
+          query<{ type: string }>('SELECT DISTINCT TypeofWork as type FROM projects WHERE TypeofWork IS NOT NULL ORDER BY type'),
         ]);
 
         setOptions({
-          regions: regionsResult.data.map(r => r.region),
-          years: yearsResult.data.map(y => y.year),
-          typeOfWork: typesResult.data.map(t => t.type),
+          regions: regionsResult.data.map(r => String(r.region)),
+          years: yearsResult.data.map(y => Number(y.year)),
+          typeOfWork: typesResult.data.map(t => String(t.type)),
         });
 
       } catch (error) {
@@ -51,27 +43,46 @@ export function FilterToolbar() {
     }
 
     fetchOptions();
-  }, [ready]); // query is memoized in DuckDBContext
+  }, [ready]);
 
-  const handleRegionToggle = (region: string) => {
-    const newRegions = filters.regions.includes(region)
-      ? filters.regions.filter(r => r !== region)
-      : [...filters.regions, region];
-    updateFilter('regions', newRegions);
+  const handleRegionSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    if (!val) return;
+    if (!filters.regions.includes(val)) {
+      updateFilter('regions', [...filters.regions, val]);
+    }
+    e.target.value = '';
   };
 
-  const handleYearToggle = (year: number) => {
-    const newYears = filters.years.includes(year)
-      ? filters.years.filter(y => y !== year)
-      : [...filters.years, year];
-    updateFilter('years', newYears);
+  const handleYearSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    if (!val) return;
+    const num = Number(val);
+    if (!filters.years.includes(num)) {
+      updateFilter('years', [...filters.years, num]);
+    }
+    e.target.value = '';
   };
 
-  const handleTypeToggle = (type: string) => {
-    const newTypes = filters.typeOfWork.includes(type)
-      ? filters.typeOfWork.filter(t => t !== type)
-      : [...filters.typeOfWork, type];
-    updateFilter('typeOfWork', newTypes);
+  const handleTypeSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    if (!val) return;
+    if (!filters.typeOfWork.includes(val)) {
+      updateFilter('typeOfWork', [...filters.typeOfWork, val]);
+    }
+    e.target.value = '';
+  };
+
+  const removeRegion = (region: string) => {
+    updateFilter('regions', filters.regions.filter(r => r !== region));
+  };
+
+  const removeYear = (year: number) => {
+    updateFilter('years', filters.years.filter(y => y !== year));
+  };
+
+  const removeType = (type: string) => {
+    updateFilter('typeOfWork', filters.typeOfWork.filter(t => t !== type));
   };
 
   const hasActiveFilters = 
@@ -82,93 +93,142 @@ export function FilterToolbar() {
   if (loading) {
     return (
       <div className="bg-white rounded-lg shadow-lg p-6 mb-8 animate-pulse">
-        <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+        <div className="h-10 bg-gray-200 rounded w-full"></div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-gray-800">Filters</h2>
+    <div className="bg-white rounded-lg shadow-md p-6 mb-8 border border-gray-100">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+        <div>
+          <h2 className="text-lg font-bold text-gray-900">Dashboard Controls</h2>
+          <p className="text-xs text-gray-500">Filter projects by region, year, or type of infrastructure work</p>
+        </div>
         {hasActiveFilters && (
           <button
             onClick={clearFilters}
-            className="px-4 py-2 text-sm font-medium text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition-colors"
+            className="self-start md:self-auto px-3 py-1.5 text-xs font-semibold text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md border border-red-200 transition-colors"
           >
-            Clear All
+            Clear All Filters
           </button>
         )}
       </div>
 
-      <div className="space-y-6">
-        {/* Region Filter */}
+      {/* Dropdown Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Region Dropdown */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Region ({filters.regions.length} selected)
+          <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1">
+            Region {filters.regions.length > 0 && `(${filters.regions.length})`}
           </label>
-          <div className="flex flex-wrap gap-2">
-            {options.regions.map(region => (
-              <button
-                key={region}
-                onClick={() => handleRegionToggle(region)}
-                className={`px-3 py-1 text-sm rounded-full transition-colors ${
-                  filters.regions.includes(region)
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {region}
-              </button>
+          <select
+            onChange={handleRegionSelect}
+            defaultValue=""
+            className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-700 cursor-pointer"
+          >
+            <option value="" disabled>Select Region...</option>
+            {options.regions.map(r => (
+              <option key={r} value={r} disabled={filters.regions.includes(r)}>
+                {r} {filters.regions.includes(r) ? '✓' : ''}
+              </option>
             ))}
-          </div>
+          </select>
         </div>
 
-        {/* Year Filter */}
+        {/* Year Dropdown */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Infrastructure Year ({filters.years.length} selected)
+          <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1">
+            Infrastructure Year {filters.years.length > 0 && `(${filters.years.length})`}
           </label>
-          <div className="flex flex-wrap gap-2">
-            {options.years.map(year => (
-              <button
-                key={year}
-                onClick={() => handleYearToggle(year)}
-                className={`px-3 py-1 text-sm rounded-full transition-colors ${
-                  filters.years.includes(year)
-                    ? 'bg-green-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {year}
-              </button>
+          <select
+            onChange={handleYearSelect}
+            defaultValue=""
+            className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-700 cursor-pointer"
+          >
+            <option value="" disabled>Select Year...</option>
+            {options.years.map(y => (
+              <option key={y} value={y} disabled={filters.years.includes(y)}>
+                {y} {filters.years.includes(y) ? '✓' : ''}
+              </option>
             ))}
-          </div>
+          </select>
         </div>
 
-        {/* Type of Work Filter */}
+        {/* Type of Work Dropdown */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Type of Work ({filters.typeOfWork.length} selected)
+          <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1">
+            Type of Work {filters.typeOfWork.length > 0 && `(${filters.typeOfWork.length})`}
           </label>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-            {options.typeOfWork.map(type => (
-              <button
-                key={type}
-                onClick={() => handleTypeToggle(type)}
-                className={`px-3 py-2 text-xs text-left rounded-md transition-colors truncate ${
-                  filters.typeOfWork.includes(type)
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-                title={type}
-              >
-                {type}
-              </button>
+          <select
+            onChange={handleTypeSelect}
+            defaultValue=""
+            className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-700 cursor-pointer"
+          >
+            <option value="" disabled>Select Type of Work...</option>
+            {options.typeOfWork.map(t => (
+              <option key={t} value={t} disabled={filters.typeOfWork.includes(t)}>
+                {t} {filters.typeOfWork.includes(t) ? '✓' : ''}
+              </option>
             ))}
-          </div>
+          </select>
         </div>
       </div>
+
+      {/* Active Filter Chips */}
+      {hasActiveFilters && (
+        <div className="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold text-gray-500 mr-1">Active:</span>
+
+          {filters.regions.map(r => (
+            <span
+              key={r}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200"
+            >
+              Region: {r}
+              <button
+                onClick={() => removeRegion(r)}
+                className="hover:text-blue-900 font-bold ml-0.5"
+                title="Remove filter"
+              >
+                &times;
+              </button>
+            </span>
+          ))}
+
+          {filters.years.map(y => (
+            <span
+              key={y}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200"
+            >
+              Year: {y}
+              <button
+                onClick={() => removeYear(y)}
+                className="hover:text-teal-900 font-bold ml-0.5"
+                title="Remove filter"
+              >
+                &times;
+              </button>
+            </span>
+          ))}
+
+          {filters.typeOfWork.map(t => (
+            <span
+              key={t}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200"
+            >
+              Work: {t}
+              <button
+                onClick={() => removeType(t)}
+                className="hover:text-purple-900 font-bold ml-0.5"
+                title="Remove filter"
+              >
+                &times;
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

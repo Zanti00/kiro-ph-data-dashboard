@@ -1,14 +1,13 @@
 import { useEffect, useState, useMemo } from 'react';
-import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+import 'leaflet.heat';
 import { useDuckDB } from '../hooks/useDuckDB';
 import { useFilters } from '../contexts/FilterContext';
 
 interface ProjectPoint {
   ProjectID: string;
-  ProjectDescription: string;
-  Region: string;
-  Province: string;
   Latitude: number;
   Longitude: number;
   ABC: number;
@@ -25,10 +24,45 @@ function MapInvalidator() {
   return null;
 }
 
+interface HeatmapLayerProps {
+  points: Array<[number, number, number]>;
+}
+
+function HeatmapLayer({ points }: HeatmapLayerProps) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map || points.length === 0) return;
+
+    const heatLayer = (L as any).heatLayer(points, {
+      radius: 28,
+      blur: 18,
+      maxZoom: 10,
+      max: 1.0,
+      gradient: {
+        0.2: '#3B82F6', // Blue
+        0.4: '#10B981', // Emerald Green
+        0.6: '#F59E0B', // Amber
+        0.8: '#EF4444', // Red
+        1.0: '#991B1B', // Dark Red (Peak budget density)
+      },
+    });
+
+    heatLayer.addTo(map);
+
+    return () => {
+      map.removeLayer(heatLayer);
+    };
+  }, [map, points]);
+
+  return null;
+}
+
 export function ProjectMap() {
   const { query, ready } = useDuckDB();
-  const { filters, buildWhereClause, updateFilter } = useFilters();
-  const [projects, setProjects] = useState<ProjectPoint[]>([]);
+  const { filters, buildWhereClause } = useFilters();
+  const [points, setPoints] = useState<Array<[number, number, number]>>([]);
+  const [count, setCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [queryTime, setQueryTime] = useState(0);
 
@@ -49,21 +83,36 @@ export function ProjectMap() {
         const sql = `
           SELECT 
             ProjectID,
-            ProjectDescription,
-            Region,
-            Province,
-            Latitude,
-            Longitude,
-            ABC
+            CAST(Latitude AS DOUBLE) as Latitude,
+            CAST(Longitude AS DOUBLE) as Longitude,
+            CAST(ABC AS DOUBLE) as ABC
           FROM projects
           ${whereClause}
-          LIMIT 500
+          LIMIT 2000
         `;
 
         const result = await query<ProjectPoint>(sql);
         const duration = performance.now() - startTime;
 
-        setProjects(result.data);
+        if (result.data.length > 0) {
+          const maxABC = Math.max(...result.data.map(p => Number(p.ABC) || 1));
+          
+          const heatPoints: Array<[number, number, number]> = result.data.map(p => {
+            const lat = Number(p.Latitude);
+            const lng = Number(p.Longitude);
+            const abc = Number(p.ABC) || 0;
+            // Normalize weight between 0.2 and 1.0 based on budget magnitude
+            const weight = Math.min(Math.max(abc / maxABC, 0.2), 1.0);
+            return [lat, lng, weight];
+          });
+
+          setPoints(heatPoints);
+          setCount(result.data.length);
+        } else {
+          setPoints([]);
+          setCount(0);
+        }
+
         setQueryTime(duration);
       } catch (error) {
         console.error('[ProjectMap] Query failed:', error);
@@ -74,18 +123,6 @@ export function ProjectMap() {
 
     fetchPoints();
   }, [ready, filtersKey, buildWhereClause]);
-
-  const handleRegionClick = (region: string) => {
-    updateFilter('regions', [region]);
-  };
-
-  const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('en-PH', {
-      style: 'currency',
-      currency: 'PHP',
-      maximumFractionDigits: 0,
-    }).format(val);
-  };
 
   if (loading) {
     return (
@@ -102,9 +139,9 @@ export function ProjectMap() {
     <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
       <div className="flex justify-between items-center mb-4">
         <div>
-          <h2 className="text-xl font-bold text-gray-800">Geographic Project Map</h2>
+          <h2 className="text-xl font-bold text-gray-800">Geographic Budget Heatmap</h2>
           <p className="text-xs text-gray-500 mt-1">
-            Showing {projects.length.toLocaleString()} project locations • Circle size indicates Approved Budget (ABC)
+            Displaying budget density gradient across {count.toLocaleString()} project locations (Blue = Low, Green/Yellow = Medium, Red = High Spend Concentration)
           </p>
         </div>
         <span className="text-xs text-gray-500">
@@ -124,34 +161,18 @@ export function ProjectMap() {
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
             url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
           />
-          {projects.map((p) => (
-            <CircleMarker
-              key={p.ProjectID}
-              center={[p.Latitude, p.Longitude]}
-              radius={Math.min(Math.max((p.ABC || 0) / 40_000_000, 4), 14)}
-              pathOptions={{
-                color: '#0F766E',
-                fillColor: '#2563EB',
-                fillOpacity: 0.7,
-                weight: 1,
-              }}
-            >
-              <Popup>
-                <div className="p-1 max-w-xs text-xs">
-                  <p className="font-bold text-gray-900 mb-1">{p.ProjectDescription}</p>
-                  <p className="text-gray-600">{p.Province}, {p.Region}</p>
-                  <p className="text-blue-600 font-semibold mt-1">Budget: {formatCurrency(p.ABC)}</p>
-                  <button
-                    onClick={() => handleRegionClick(p.Region)}
-                    className="mt-2 w-full px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium"
-                  >
-                    Filter by Region ({p.Region})
-                  </button>
-                </div>
-              </Popup>
-            </CircleMarker>
-          ))}
+          <HeatmapLayer key={filtersKey} points={points} />
         </MapContainer>
+      </div>
+
+      {/* Heatmap Legend */}
+      <div className="mt-3 flex items-center justify-between text-xs text-gray-600 px-2">
+        <span className="font-semibold">Spend Intensity:</span>
+        <div className="flex items-center gap-2">
+          <span>Low</span>
+          <div className="h-3 w-32 rounded bg-gradient-to-r from-blue-500 via-emerald-500 via-amber-500 to-red-600"></div>
+          <span>High Capital Density</span>
+        </div>
       </div>
     </div>
   );
